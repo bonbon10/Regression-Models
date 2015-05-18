@@ -1,0 +1,140 @@
+---
+title: "Exploring the Effect of Transmission on MPG"
+output: pdf_document
+fontsize: 9 pt
+---
+
+------------------------------------------
+
+
+#### **Summary**
+
+This analysis uses the mtcars dataset in R. The response variable is mpg (miles per gallon), and there are ten other variables representing automobile design and performance for 32 automobiles. We will explore the relationship between mpg and this set of variables, ultimately looking to determine whether automatic or manual transmission is better for mpg.
+
+
+```{r, warning=FALSE, echo=FALSE}
+library(ggplot2); library(MASS); library(car); library(corrplot)
+data(mtcars) 
+```
+
+#### **Exploratory Data Analyses**
+
+<br>
+First, we can create a boxplot of mpg by transmission type (see appendix). From the boxplots, we see that manual cars have a higher mean mpg than automatic cars. Next, we can investigate the correlation for all variables in the dataset (see appendix). From the correlation plot, we see that gear and rear axle ratio are the two most highly correlated variables with transmission type, which is important to know when fitting different linear models.
+
+<br>
+
+#### **Model Fitting**
+
+First, we can start with a simple linear regression with mpg as the response variable and transmission type as the only predictor. 
+
+```{r, echo=FALSE}
+mod1 <- lm(mpg~am, data=mtcars)
+mod1$coefficients
+```
+
+The intercept coefficient is 17.147 and the slope coefficient is 7.245. Note that transmission is a dummy variable, where 0 corresponds to automatic and 1 corresponds to manual. Therefore, the slope coefficient is applied to observations with manual transmission. In other words, this model can be interpreted as follows: The expected value of mpg for cars with automatic transmission is 17.147, and the expected value of mpg for cars with manual transmission is 17.147 + 7.245 =  24.392. The residual plot is included in the appendix.
+
+<br>
+
+Next, let's look at the model that includes all variables in the dataset as predictors. Although there are probably some unneccessary variables included here, it is helpful to see whether transmission type has the same effect on mpg when multiple variables are included in the model, opposed to the model that only includes transmission type. 
+
+```{r, echo=FALSE}
+mod2 <- lm(mpg~., data=mtcars)
+mod2$coefficients
+```
+
+The coefficient for transmission is 2.52023. It is still positive, indicating that cars with manual transmission generally have a higher mpg than cars with automatic transmission. However, the coefficient is much lower, indicating that when other variables are included in the model, the effect of transmission type on mpg is much lower. The residual plot is included in the appendix.
+
+<br>
+
+This brings us to the question of how to determine which variables should be included in the model. To answer this, we can perform backwards stepwise regression. This starts with all the variables in the dataset in the model, and one by one, removes variables that are not significant. 
+
+```{r results='hide', echo=FALSE}
+# Stepwise Regression
+mod3 <- stepAIC(mod2, direction="backward")
+```
+```{r, echo=FALSE}
+summary(mod3)
+```
+
+After performing stepwise regression, we are left with transmission type, weight, and 1/4 mile time as predictors in the model for mpg. The coefficient for transmission type is 2.9358 - this is larger than the coefficient from the model that included all variables, but much smaller than the coefficient from the model that only included transmission type as a predictor. This tells us that the simple model overstated the relationship that transmission type has on mpg; when weight and 1/4 mile time are included as predictors, the coefficient for transmission decreases.
+
+We should also do some diagnostic checks on this model. First, we can check the residual plot to see that there is no observable pattern, indicating that a linear model is appropriate. Next, we can check the QQ plot of the residuals, and we conclude that the assumption that the residuals are normally distributed is reasonable. We should also check for outliers that might influence the regression coefficients. Looking at the leverage plots,  we see that there are no noticeable outliers that could be causing an underlying problem with the model. Finally, we can compute the variance inflation factors, and we see small and similar values for each predictor, indicating that multicollinearity is not a serious issue in the model.
+
+#### **Inference**
+
+To quantify uncertainty, we can do a t-test, where the null hypothesis is that the mean mpgs for automatic transmission cars and manual transmission cars are equal and the alternate is that the mean for manual is less. 
+
+t statistics and p-value:
+```{r, echo=FALSE}
+ttest <- t.test(mpg~am, data=mtcars, alternative="less")
+ttest$statistic; ttest$p.value
+```
+
+We get a p-value of 0.000686, which indicates that we can reject the null hypothesis at the alpha=0.05 level. If the null hypothesis was in fact true, then the probability of observing data as extreme or more extreme than what we have is 0.000686. 
+
+#### **Conclusion**
+
+In our final model with three predictors, the coefficient for transmission type is 2.9358, where automatic transmission is the reference level. Therefore, we can conclude that on average, holding weight and 1/4 mile type constant, the mpg for manual cars is 2.9358 higher than automatic transmission cars. Before conducting the regressions, we saw from the boxplots that manual cars had a higher average mpg, and the linear models we fit confirmed this suspicion. Therefore, if mpg is a concern when buying a new or used car, it is wise to choose a car with manual transmission, as they tend to get a higher mpg than automatic cars. 
+
+\pagebreak
+
+# **Appendix**
+
+## Exploratory Data Analysis: Boxplots and correlation plot
+
+```{r, fig.height=2.5, echo=FALSE}
+mtcars$am_f <- as.factor(mtcars$am)
+levels(mtcars$am_f) <- c("Automatic","Manual")
+ggplot(aes(y = mpg, x = am_f), data = mtcars) + geom_boxplot()  +xlab("Transmission") + ylab("mpg") 
+mtcars$am_f <- NULL
+```
+ <br> 
+```{r, fig.height=2.5, echo=FALSE}
+corr_m <- cor(mtcars)
+corrplot(corr_m, method = "square")
+```
+
+## Diagnostics for Regressions
+
+###### Model 1
+
+```{r, fig.height=2.4, echo=FALSE}
+plot(mod1, which=1)
+```
+
+###### Model 2
+
+```{r, fig.height=2.5, echo=FALSE}
+plot(mod2, which=1)
+```
+
+###### Model 3
+
+Residual plot:
+
+```{r, fig.height=2.5, echo=FALSE}
+plot(mod3, which=1)
+```
+
+QQ plot for residuals:
+
+```{r, fig.height=2.5, echo=FALSE}
+plot(mod3, which=2)
+```
+
+Leverage Plots: 
+
+```{r, fig.height=4, echo=FALSE}
+leveragePlots(mod3)
+```
+
+Variance inflation factors:
+
+```{r, fig.height=2, echo=FALSE}
+vif <- vif(mod3)
+vif_dat <- data.frame(Variable =c("wt","qsec","am"), vif=vif)
+vif_dat$Variable <- as.factor(vif_dat$Variable)
+ggplot(aes(x=Variable, y=vif), data=vif_dat) + geom_point(size=4) + xlab("")
+```
